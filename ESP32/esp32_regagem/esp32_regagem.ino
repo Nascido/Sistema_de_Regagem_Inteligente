@@ -62,6 +62,15 @@ void handleGetStatus() {
   server.send(200, "application/json", json);
 }
 
+// --- NOVA ROTA: /restart ---
+void handleRestart() {
+  server.send(200, "text/plain", "Reiniciando ESP32...");
+  Serial.println("[HTTP] Comando de reinicialização recebido via /restart.");
+  delay(100); // Pequeno delay para garantir envio da resposta
+  ESP.restart(); // Comando seguro para reinicialização do ESP32
+}
+// -----------------------------
+
 void enviarDadosBackend(int umidade, int ldr) {
   if (WiFi.status() == WL_CONNECTED) {
     HTTPClient http;
@@ -129,6 +138,7 @@ void setupWiFi() {
 void setupHTTPServer() {
   server.on("/set_umidade", handleSetUmidade);
   server.on("/status", handleGetStatus);
+  server.on("/restart", handleRestart); // <-- Adicionada nova rota
   server.begin();
   Serial.println("Servidor HTTP iniciado na porta 80.");
 }
