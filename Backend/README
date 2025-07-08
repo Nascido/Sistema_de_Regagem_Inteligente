@@ -1,0 +1,185 @@
+
+# Documentação do Backend – Projeto ESP32
+
+Esta documentação descreve a estrutura, funcionamento e integração do backend Go projetado para comunicação com o ESP32. O backend é modular, escalável e pronto para receber dados dos sensores via HTTP, além de facilitar futuras expansões.
+
+## Sumário
+
+- [Estrutura de Pastas](#estrutura-de-pastas)
+- [Descrição dos Diretórios e Arquivos](#descri%C3%A7%C3%A3o-dos-diret%C3%B3rios-e-arquivos)
+- [Configuração e Execução](#configura%C3%A7%C3%A3o-e-execu%C3%A7%C3%A3o)
+- [Endpoints Disponíveis](#endpoints-dispon%C3%ADveis)
+- [Formato das Requisições e Respostas](#formato-das-requisi%C3%A7%C3%B5es-e-respostas)
+- [Exemplo de Integração com ESP32](#exemplo-de-integra%C3%A7%C3%A3o-com-esp32)
+- [Boas Práticas e Observações](#boas-pr%C3%A1ticas-e-observa%C3%A7%C3%B5es)
+
+
+## Estrutura de Pastas
+
+```
+/cmd
+    /server
+        main.go
+/config
+    config.go
+/internal
+    /handlers
+        sensor_data.go
+    /models
+        sensor_data.go
+    /routes
+        routes.go
+    /services
+        sensor_service.go
+.go.mod
+.go.sum
+.env
+README.md
+```
+
+
+## Descrição dos Diretórios e Arquivos
+
+- **/cmd/server/main.go**
+Ponto de entrada da aplicação. Inicializa configurações, carrega variáveis de ambiente e inicia o servidor HTTP.
+- **/config/config.go**
+Carrega variáveis de ambiente do arquivo `.env` e define parâmetros globais (ex: porta do servidor).
+- **/internal/handlers/sensor_data.go**
+Implementa o handler HTTP para receber dados do ESP32.
+- **/internal/models/sensor_data.go**
+Define os modelos de dados utilizados nas requisições e respostas (ex: estrutura dos dados do sensor).
+- **/internal/routes/routes.go**
+Define e registra as rotas HTTP do serviço.
+- **/internal/services/sensor_service.go**
+Contém a lógica de negócio para processar os dados recebidos (ex: persistência, logs, validações).
+- **.env**
+Arquivo de configuração de variáveis de ambiente (exemplo: `PORT=8080`).
+- **go.mod / go.sum**
+Gerenciamento de dependências do projeto Go.
+
+
+## Configuração e Execução
+
+1. **Clone o repositório e acesse a pasta do projeto.**
+2. **Crie o arquivo `.env` na raiz do projeto:**
+
+```
+PORT=8080
+```
+
+3. **Instale as dependências:**
+
+```
+go mod tidy
+```
+
+4. **Execute o servidor:**
+
+```
+go run ./cmd/server
+```
+
+
+## Endpoints Disponíveis
+
+| Método | Rota | Descrição |
+| :-- | :-- | :-- |
+| POST | /api/sensor-data | Recebe dados dos sensores do ESP32 |
+
+## Formato das Requisições e Respostas
+
+### 1. POST `/api/sensor-data`
+
+- **Descrição:** Recebe dados de umidade e luminosidade enviados pelo ESP32.
+- **Content-Type:** `application/json`
+
+
+#### Exemplo de Payload (requisição)
+
+```json
+{
+  "umidade": 2100,
+  "ldr": 1500
+}
+```
+
+
+#### Exemplo de Resposta (sucesso)
+
+```json
+{"status":"ok"}
+```
+
+
+#### Possíveis Códigos de Resposta
+
+| Código | Descrição |
+| :-- | :-- |
+| 200 | Dados recebidos com sucesso |
+| 400 | Erro ao ler corpo da requisição |
+| 400 | JSON inválido |
+
+## Exemplo de Integração com ESP32
+
+**Requisição HTTP enviada pelo ESP32:**
+
+```http
+POST /api/sensor-data HTTP/1.1
+Host: <BACKEND_URL>
+Content-Type: application/json
+
+{
+  "umidade": 2100,
+  "ldr": 1500
+}
+```
+
+**Resposta esperada:**
+
+```json
+{"status":"ok"}
+```
+
+
+## Boas Práticas e Observações
+
+- **Variáveis de ambiente**: O arquivo `.env` deve ser mantido fora do controle de versão (adicione ao `.gitignore`).
+- **Extensibilidade**: A estrutura modular facilita a adição de novos endpoints, autenticação, persistência em banco de dados e outras funcionalidades.
+- **Tratamento de erros**: O backend retorna mensagens claras e apropriadas para cada situação de erro.
+- **Testes**: Recomenda-se implementar testes unitários utilizando o pacote `testing` do Go para os handlers e serviços.
+- **Documentação**: Mantenha este README atualizado conforme novos endpoints ou alterações forem implementadas.
+
+
+## Exemplos de Teste Local
+
+**Testando com curl:**
+
+```bash
+curl -X POST http://localhost:8080/api/sensor-data \
+  -H "Content-Type: application/json" \
+  -d '{"umidade":2100,"ldr":1500}'
+```
+
+**Resposta:**
+
+```json
+{"status":"ok"}
+```
+
+
+## Resumo das Responsabilidades dos Módulos
+
+| Módulo | Responsabilidade Principal |
+| :-- | :-- |
+| /cmd/server | Inicialização e execução do servidor |
+| /config | Carregamento de variáveis de ambiente |
+| /internal/models | Definição dos modelos de dados |
+| /internal/handlers | Implementação dos handlers HTTP |
+| /internal/routes | Registro e organização das rotas |
+| /internal/services | Lógica de negócio e processamento dos dados |
+
+Este backend serve como base robusta para integração com dispositivos embarcados, sendo facilmente adaptável para futuras demandas do projeto.
+
+<div style="text-align: center">⁂</div>
+
+[^1]: Documentacao-das-Requisicoes-HTTP-Projeto-ESP32-1.md
