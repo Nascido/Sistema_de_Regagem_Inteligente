@@ -1,6 +1,8 @@
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <WebServer.h>
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
 
 // --- Definições de pinos ---
 #define PINO_LDR      33
@@ -23,6 +25,9 @@ const char* backend_url = "https://webhook.site/db6d13dc-0429-42ec-b8e9-e3016439
 // --- Controle de tempo ---
 unsigned long intervaloLeitura = 1000; // ms
 unsigned long ultimaLeitura = 0;
+
+// --- LCD I2C ---
+LiquidCrystal_I2C lcd(0x27, 16, 2); // Endereço 0x27, 16 colunas, 2 linhas
 
 // --- Funções auxiliares ---
 
@@ -47,7 +52,6 @@ void handleSetUmidade() {
 }
 
 void handleGetStatus() {
-  // Retorna o status atual dos sensores e do relé em JSON
   int valorUmidade = analogRead(PINO_UMIDADE);
   int valorLDR = analogRead(PINO_LDR);
   bool releAtivo = digitalRead(PINO_RELE);
@@ -66,10 +70,9 @@ void handleGetStatus() {
 void handleRestart() {
   server.send(200, "text/plain", "Reiniciando ESP32...");
   Serial.println("[HTTP] Comando de reinicialização recebido via /restart.");
-  delay(100); // Pequeno delay para garantir envio da resposta
-  ESP.restart(); // Comando seguro para reinicialização do ESP32
+  delay(100);
+  ESP.restart();
 }
-// -----------------------------
 
 void enviarDadosBackend(int umidade, int ldr) {
   if (WiFi.status() == WL_CONNECTED) {
@@ -103,7 +106,7 @@ void controlarRele(int valorUmidade) {
 
 void setupWiFi() {
   Serial.print("Conectando ao WiFi: ");
-  WiFi.disconnect(true); // Limpa credenciais antigas
+  WiFi.disconnect(true);
   delay(1000);
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
@@ -138,9 +141,23 @@ void setupWiFi() {
 void setupHTTPServer() {
   server.on("/set_umidade", handleSetUmidade);
   server.on("/status", handleGetStatus);
-  server.on("/restart", handleRestart); // <-- Adicionada nova rota
+  server.on("/restart", handleRestart);
   server.begin();
   Serial.println("Servidor HTTP iniciado na porta 80.");
+}
+
+// --- Função para exibir dados no LCD ---
+void atualizarLCD(const String& ip, int umidade, int ldr) {
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print(" ");
+  lcd.print(ip);
+
+  lcd.setCursor(0, 1);
+  lcd.print("U:");
+  lcd.print(umidade);
+  lcd.print(" L:");
+  lcd.print(ldr);
 }
 
 // --- Função setup ---
@@ -148,8 +165,28 @@ void setup() {
   Serial.begin(115200);
   pinMode(PINO_RELE, OUTPUT);
   digitalWrite(PINO_RELE, LOW);
+
+  // Inicializa o LCD
+  Wire.begin(21, 22); // SDA = 21, SCL = 22
+  lcd.init();
+  lcd.backlight();
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Iniciando...");
+
   setupWiFi();
   setupHTTPServer();
+
+  // Exibe o IP após conexão WiFi
+  if (WiFi.status() == WL_CONNECTED) {
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print(" ");
+    lcd.print(WiFi.localIP());
+    lcd.setCursor(0, 1);
+    lcd.print("U:---- L:----");
+    delay(2000); // Breve exibição inicial
+  }
 }
 
 // --- Função loop ---
@@ -169,6 +206,10 @@ void loop() {
     Serial.print(valorUmidade);
     Serial.print("\tLDR: ");
     Serial.println(valorLDR);
+
+    // Atualiza o display LCD com IP, Umidade e LDR
+    String ipStr = WiFi.localIP().toString();
+    atualizarLCD(ipStr, valorUmidade, valorLDR);
 
     // Descomente para enviar ao backend
     // enviarDadosBackend(valorUmidade, valorLDR);
