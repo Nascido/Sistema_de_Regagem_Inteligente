@@ -1,3 +1,4 @@
+<img src="https://r2cdn.perplexity.ai/pplx-full-logo-primary-dark%402x.png" class="logo" width="120"/>
 
 # Documentação das Requisições HTTP – Projeto ESP32
 
@@ -9,6 +10,7 @@ Esta documentação descreve as rotas HTTP implementadas no firmware do ESP32, d
 - [Formato das Requisições e Respostas](#formato-das-requisi%C3%A7%C3%B5es-e-respostas)
     - [/set_umidade](#set_umidade)
     - [/status](#status)
+    - [/restart](#restart)
 - [Envio de Dados ao Backend](#envio-de-dados-ao-backend)
 - [Códigos de Resposta HTTP](#c%C3%B3digos-de-resposta-http)
 - [Exemplos de Uso](#exemplos-de-uso)
@@ -21,6 +23,7 @@ Esta documentação descreve as rotas HTTP implementadas no firmware do ESP32, d
 | :-- | :-- | :-- | :-- |
 | `/set_umidade` | GET | valor (query) | Define novo limiar de umidade |
 | `/status` | GET | — | Retorna status atual dos sensores e relé |
+| `/restart` | GET | — | Reinicia o ESP32 remotamente |
 
 ## Formato das Requisições e Respostas
 
@@ -80,6 +83,29 @@ Host: <IP_DO_ESP32>
 | rele | bool | Estado do relé (0: desligado, 1: ligado) |
 | umidade_limiar | int | Limiar atual de umidade configurado |
 
+### `/restart`
+
+- **Método:** GET
+- **Parâmetro:** Nenhum
+- **Função:** Reinicia o ESP32 remotamente.
+
+
+#### Exemplo de Requisição
+
+```
+GET /restart HTTP/1.1
+Host: <IP_DO_ESP32>
+```
+
+
+#### Resposta
+
+| Código | Content-Type | Corpo da Resposta | Descrição |
+| :-- | :-- | :-- | :-- |
+| 200 | text/plain | Reiniciando ESP32... | Comando aceito, ESP32 será reiniciado |
+
+> **Observação:** Após o envio da resposta, o ESP32 executa um reset imediato, interrompendo todas as conexões ativas.
+
 ## Envio de Dados ao Backend
 
 - **Função:** Envia, periodicamente, os valores de umidade e LDR para um endpoint HTTP externo.
@@ -138,6 +164,20 @@ Resposta esperada:
 ```
 
 
+### Reiniciar o ESP32 remotamente
+
+```bash
+curl "http://<IP_DO_ESP32>/restart"
+```
+
+Resposta esperada:
+
+```
+Reiniciando ESP32...
+```
+
+> Após o recebimento dessa resposta, o ESP32 será reinicializado e ficará temporariamente indisponível.
+
 ## Observações Técnicas
 
 - O ESP32 atua como servidor HTTP na porta 80, respondendo apenas a requisições locais (mesma rede WiFi).
@@ -147,5 +187,4 @@ Resposta esperada:
 - Para integração com outros sistemas, recomenda-se validar sempre os códigos de resposta HTTP e o formato dos dados recebidos.
 
 **Sugestão de Próximo Passo:**
-Adicionar uma rota `/restart` para reinicialização remota do ESP32, ou implementar persistência do limiar de umidade em EEPROM para manter o valor configurado após reinicializações.
-
+Implemente persistência do valor de `umidade_limiar` na EEPROM, para que o limiar configurado via HTTP não seja perdido após reinicializações. Isso aumenta a robustez do sistema e a experiência do usuário.
