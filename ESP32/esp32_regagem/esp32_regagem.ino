@@ -29,6 +29,16 @@ unsigned long ultimaLeitura = 0;
 // --- LCD I2C ---
 LiquidCrystal_I2C lcd(0x27, 16, 2); // Endereço 0x27, 16 colunas, 2 linhas
 
+// --- Controle da bomba ---
+bool bombaLigada = false;
+unsigned long tempoInicioBomba = 0;
+unsigned long tempoUltimoCiclo = 0;
+const unsigned long TEMPO_LIGADA = 2000;   // 2 segundos
+const unsigned long TEMPO_ESPERA = 15000;  // 15 segundos
+
+// --- Flag para ativação manual imediata ---
+volatile bool ativarBombaImediato = false;
+
 // --- Funções auxiliares ---
 
 void handleSetUmidade() {
@@ -74,12 +84,23 @@ void handleRestart() {
   ESP.restart();
 }
 
+// --- NOVA ROTA: /ativar_bomba ---
+void handleAtivarBomba() {
+  if (!bombaLigada && !ativarBombaImediato) {
+    ativarBombaImediato = true;
+    server.send(200, "text/plain", "Bomba será ativada imediatamente por 2 segundos.");
+    Serial.println("[HTTP] Comando de ativação imediata recebido via /ativar_bomba.");
+  } else {
+    server.send(409, "text/plain", "Bomba já está ligada ou aguardando ciclo.");
+  }
+}
+
 void enviarDadosBackend(int umidade, int ldr) {
   if (WiFi.status() == WL_CONNECTED) {
     HTTPClient http;
     http.begin(backend_url);
     http.addHeader("Content-Type", "application/json");
-    String payload = "{\"umidade\":" + String(umidade) + ",\"ldr\":" + String(ldr) + "}";
+    String payload = "{\"umidade\":" + String(umidade) + ",\"ldr\":" + String(ldr) + ",\"evento\":\"bomba_ativada\"}";
     int httpResponseCode = http.POST(payload);
 
     if (httpResponseCode > 0) {
@@ -96,11 +117,40 @@ void enviarDadosBackend(int umidade, int ldr) {
   }
 }
 
-void controlarRele(int valorUmidade) {
-  if (valorUmidade > umidade_limiar) {
+// --- Lógica de controle da bomba ---
+void controlarBomba(int valorUmidade, int valorLDR) {
+  unsigned long agora = millis();
+
+  // Prioridade: ativação imediata via requisição
+  if (ativarBombaImediato && !bombaLigada) {
     digitalWrite(PINO_RELE, HIGH);
+    bombaLigada = true;
+    tempoInicioBomba = agora;
+    ativarBombaImediato = false; // Limpa flag
+    Serial.println("[BOMBA] Ativada IMEDIATAMENTE por 2s via HTTP.");
+    enviarDadosBackend(valorUmidade, valorLDR); // Notifica backend
+    return;
+  }
+
+  if (bombaLigada) {
+    // Se a bomba está ligada, verifica se já passou o tempo de 2 segundos
+    if (agora - tempoInicioBomba >= TEMPO_LIGADA) {
+      digitalWrite(PINO_RELE, LOW);
+      bombaLigada = false;
+      tempoUltimoCiclo = agora;
+      Serial.println("[BOMBA] Desligada após 2s.");
+    }
   } else {
-    digitalWrite(PINO_RELE, LOW);
+    // Se a bomba está desligada, verifica se já passou o tempo de espera
+    if (agora - tempoUltimoCiclo >= TEMPO_ESPERA) {
+      if (valorUmidade > umidade_limiar) {
+        digitalWrite(PINO_RELE, HIGH);
+        bombaLigada = true;
+        tempoInicioBomba = agora;
+        Serial.println("[BOMBA] Ligada por 2s (umidade acima do limiar).");
+        enviarDadosBackend(valorUmidade, valorLDR); // Notifica backend
+      }
+    }
   }
 }
 
@@ -142,6 +192,7 @@ void setupHTTPServer() {
   server.on("/set_umidade", handleSetUmidade);
   server.on("/status", handleGetStatus);
   server.on("/restart", handleRestart);
+  server.on("/ativar_bomba", handleAtivarBomba); // NOVA ROTA
   server.begin();
   Serial.println("Servidor HTTP iniciado na porta 80.");
 }
@@ -200,7 +251,7 @@ void loop() {
     int valorUmidade = analogRead(PINO_UMIDADE);
     int valorLDR = analogRead(PINO_LDR);
 
-    controlarRele(valorUmidade);
+    controlarBomba(valorUmidade, valorLDR);
 
     Serial.print("Umidade: ");
     Serial.print(valorUmidade);
@@ -210,8 +261,5 @@ void loop() {
     // Atualiza o display LCD com IP, Umidade e LDR
     String ipStr = WiFi.localIP().toString();
     atualizarLCD(ipStr, valorUmidade, valorLDR);
-
-    // Descomente para enviar ao backend
-    // enviarDadosBackend(valorUmidade, valorLDR);
   }
 }
